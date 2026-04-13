@@ -46,7 +46,7 @@ def sub_cb(topic, msg):
     global colorPin1, colorPin2
     print((topic, msg))
     
-    if topic == b"breadboardRGB/Strip1":
+    if topic == b"breadboardRGB/Strip1" or topic == b"breadboardRGB/all":
         if msg.startswith(b"#"):
             set_color_hex(1, msg)
             colorPin1 = msg
@@ -55,7 +55,7 @@ def sub_cb(topic, msg):
         elif msg == b"on":
             set_color_hex(1, colorPin1)
         
-    elif topic == b"breadboardRGB/Strip2":
+    if topic == b"breadboardRGB/Strip2" or topic == b"breadboardRGB/all":
         if msg.startswith(b"#"):
             set_color_hex(2, msg)
             colorPin2 = msg
@@ -183,6 +183,7 @@ def main(server="localhost"):
     
     c.subscribe(b"breadboardRGB/Strip1")
     c.subscribe(b"breadboardRGB/Strip2")
+    c.subscribe(b"breadboardRGB/all")
     while True:
         if True:
             # Blocking wait for message
