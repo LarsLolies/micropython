@@ -43,28 +43,43 @@ def connect_wifi():
 
 
 def sub_cb(topic, msg):
-    global colorPin1, colorPin2
+    global colorPin1, colorPin2, modePin1, modePin2
+
     print((topic, msg))
     
     if topic == b"breadboardRGB/Strip1" or topic == b"breadboardRGB/all":
         if msg.startswith(b"#"):
+            modePin1 = "static"
             set_color_hex(1, msg)
             colorPin1 = msg
+
         elif msg == b"off":
+            modePin1 = "static"
             set_color_hex(1, "#000000")
+
         elif msg == b"on":
+            modePin1 = "static"
             set_color_hex(1, colorPin1)
-        
+
+        elif msg == b"rainbow":
+            modePin1 = "rainbow"
+
     if topic == b"breadboardRGB/Strip2" or topic == b"breadboardRGB/all":
         if msg.startswith(b"#"):
+            modePin2 = "static"
             set_color_hex(2, msg)
             colorPin2 = msg
-        elif msg == b"off":
-            set_color_hex(2, "#000000")
-        elif msg == b"on":
-            set_color_hex(2, colorPin2)
-        
 
+        elif msg == b"off":
+            modePin2 = "static"
+            set_color_hex(2, "#000000")
+
+        elif msg == b"on":
+            modePin2 = "static"
+            set_color_hex(2, colorPin2)
+
+        elif msg == b"rainbow":
+            modePin2 = "rainbow"
 
 
 
@@ -72,6 +87,7 @@ def sub_cb(topic, msg):
 import array, time
 from machine import Pin
 import rp2
+import math
 
 # =======================
 # KONFIGURATION
@@ -81,6 +97,12 @@ NUM_LEDS_2 = 2
 
 PIN_1 = 22
 PIN_2 = 21
+
+modePin1 = "static"
+modePin2 = "static"
+
+rainbow_index_1 = 0
+rainbow_index_2 = 0
 
 brightness = 0.1
 
@@ -167,13 +189,30 @@ def set_color_hex(strip, hex_color):
     pixels_fill(strip, (r, g, b))
     pixels_show()
 
+import time
+
+def wheel_smooth(pos):
+    """Sanfter Rainbow (0-255) mit Sinus-Kurven"""
+    pos = pos / 255.0  # auf 0–1 skalieren
+
+    r = int((math.sin(2 * math.pi * pos) + 1) * 127.5)
+    g = int((math.sin(2 * math.pi * pos + 2 * math.pi / 3) + 1) * 127.5)
+    b = int((math.sin(2 * math.pi * pos + 4 * math.pi / 3) + 1) * 127.5)
+
+    return (r, g, b)
+
+
+def rainbow_step(strip, j):
+    color = wheel_smooth(j)
+    pixels_fill(strip, color)
+    pixels_show()
 # =======================
 # MAIN
 # =======================
 def main(server="localhost"):
+    import time
 
-    
-    
+    global rainbow_index_1, rainbow_index_2
 
     connect_wifi()
     c = MQTTClient("umqtt_client", MQTT_SERVER, user=MQTT_USER, password=MQTT_PASSWORD)
@@ -184,18 +223,22 @@ def main(server="localhost"):
     c.subscribe(b"breadboardRGB/Strip1")
     c.subscribe(b"breadboardRGB/Strip2")
     c.subscribe(b"breadboardRGB/all")
-    while True:
-        if True:
-            # Blocking wait for message
-            c.wait_msg()
-        else:
-            # Non-blocking wait for message
-            c.check_msg()
-            # Then need to sleep to avoid 100% CPU usage (in a real
-            # app other useful actions would be performed instead)
-            time.sleep(1)
 
-    c.disconnect()
+    while True:
+        # MQTT Nachrichten verarbeiten
+        c.check_msg()
+
+        # Strip 1
+        if modePin1 == "rainbow":
+            rainbow_step(1, rainbow_index_1)
+            rainbow_index_1 = (rainbow_index_1 + 1) % 256
+
+        # Strip 2
+        if modePin2 == "rainbow":
+            rainbow_step(2, rainbow_index_2)
+            rainbow_index_2 = (rainbow_index_2 + 1) % 256
+
+        time.sleep(0.05)
 
 
 main()
